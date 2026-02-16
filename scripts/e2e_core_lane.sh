@@ -70,7 +70,7 @@ fi
 
 WG_DIR="$SOURCE_REPO/.workgraph"
 WRAPPER="$WG_DIR/redrift"
-TASK_ID="redrift-speedrift-core-ecosystem-v2-${RUN_ID}"
+TASK_ID="redrift-coredrift-core-ecosystem-v2-${RUN_ID}"
 TARGET_REPO="$TARGET_ROOT/speedrift-ecosystem-v2-${RUN_ID}"
 if [[ -z "$WORKTREE_BRANCH" ]]; then
   WORKTREE_BRANCH="redrift-v2-${RUN_ID}"
@@ -105,7 +105,7 @@ Redrift the core Speedrift ecosystem with a controlled v2 lane.
 
 Scope:
 - driftdriver (orchestration spine)
-- speedrift (baseline lane)
+- coredrift (baseline lane)
 - redrift (brownfield v2 lane)
 
 Success metrics:
@@ -129,7 +129,7 @@ non_goals = [
 touch = [
   "README.md",
   "driftdriver/**",
-  "speedrift/**",
+  "coredrift/**",
   "redrift/**",
   ".workgraph/**",
   "docs/**",
@@ -168,7 +168,7 @@ require_spec_update_when_code_changes = true
 \`\`\`therapydrift
 schema = 1
 min_signal_count = 2
-followup_prefixes = ["drift-", "speedrift-pit-", "redrift-"]
+followup_prefixes = ["drift-", "coredrift-pit-", "speedrift-pit-", "redrift-"]
 require_recovery_plan = true
 ignore_signal_prefixes = ["Therapydrift:"]
 cooldown_seconds = 1800
@@ -183,14 +183,14 @@ max_new_files = 25
 max_new_dirs = 6
 enforce_no_speculative_abstractions = true
 abstraction_keywords = ["framework", "engine", "orchestrator", "provider", "base"]
-allow_paths = ["driftdriver/**", "speedrift/**", "redrift/**", "docs/**", ".workgraph/**"]
+allow_paths = ["driftdriver/**", "coredrift/**", "redrift/**", "docs/**", ".workgraph/**"]
 \`\`\`
 EOF
 
 if wg --dir "$WG_DIR" show "$TASK_ID" >/dev/null 2>&1; then
   echo "task already exists: $TASK_ID"
 else
-  wg --dir "$WG_DIR" add "Redrift core ecosystem (driftdriver + speedrift + redrift) ${RUN_ID}" \
+  wg --dir "$WG_DIR" add "Redrift core ecosystem (driftdriver + coredrift + redrift) ${RUN_ID}" \
     --id "$TASK_ID" \
     -d "$(cat "$tmp_desc")" \
     -t drift -t redrift -t ecosystem -t core

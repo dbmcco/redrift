@@ -30,9 +30,12 @@ OPTIONAL_SUITE_FENCES = (
     "yagnidrift",
 )
 PHASE_DEFAULT_EXCLUDED_FENCES = ("therapydrift",)
-EXECUTE_PLUGIN_ORDER = ("speedrift", "specdrift", "datadrift", "depsdrift", "uxdrift", "therapydrift", "yagnidrift", "redrift")
+BASELINE_PLUGIN = "coredrift"
+LEGACY_BASELINE_PLUGIN = "speedrift"
+EXECUTE_PLUGIN_ORDER = (BASELINE_PLUGIN, "specdrift", "datadrift", "depsdrift", "uxdrift", "therapydrift", "yagnidrift", "redrift")
 COMMIT_PHASES = ("root", "analyze", "respec", "design", "build")
 V2_WORKGRAPH_IGNORES = (
+    ".coredrift/",
     ".speedrift/",
     ".specdrift/",
     ".datadrift/",
@@ -43,6 +46,7 @@ V2_WORKGRAPH_IGNORES = (
     ".redrift/last.json",
 )
 COMMIT_EXCLUDE_PATHS = (
+    ".workgraph/.coredrift/**",
     ".workgraph/.speedrift/**",
     ".workgraph/.specdrift/**",
     ".workgraph/.datadrift/**",
@@ -222,6 +226,16 @@ def _extract_suite_fence_blocks(description: str) -> dict[str, str]:
     return blocks
 
 
+def _baseline_wrapper(wg_dir: Path) -> Path | None:
+    preferred = wg_dir / BASELINE_PLUGIN
+    if preferred.exists():
+        return preferred
+    legacy = wg_dir / LEGACY_BASELINE_PLUGIN
+    if legacy.exists():
+        return legacy
+    return None
+
+
 def _phase_fence_blocks(*, inherited_fences: dict[str, str], include_therapydrift: bool) -> dict[str, str]:
     blocks = dict(inherited_fences)
     if include_therapydrift:
@@ -310,6 +324,7 @@ def _bootstrap_v2_repo(
     copy_names = [
         "drifts",
         "driftdriver",
+        "coredrift",
         "speedrift",
         "specdrift",
         "datadrift",
@@ -438,26 +453,29 @@ def _run_suite_check(
     if extract_redrift_spec(description) is not None:
         enabled["redrift"] = "<embedded>"
 
-    speedrift = wg_dir / "speedrift"
-    if not speedrift.exists():
-        raise FileNotFoundError(f"{speedrift} not found")
+    baseline_wrapper = _baseline_wrapper(wg_dir)
+    if baseline_wrapper is None:
+        raise FileNotFoundError(f"{wg_dir / BASELINE_PLUGIN} not found")
 
     overall = ExitCode.ok
 
-    cmd = [str(speedrift), "--dir", str(project_dir), "check", "--task", str(task_id)]
+    cmd = [str(baseline_wrapper), "--dir", str(project_dir), "check", "--task", str(task_id)]
     if write_log:
         cmd.append("--write-log")
     if create_followups:
         cmd.append("--create-followups")
-    speed_rc = int(subprocess.call(cmd))
-    plugins_run.append({"plugin": "speedrift", "exit_code": speed_rc})
-    if speed_rc not in (ExitCode.ok, ExitCode.findings):
-        return speed_rc, plugins_run
-    if speed_rc == ExitCode.findings:
+    baseline_rc = int(subprocess.call(cmd))
+    baseline_row: dict[str, int | str] = {"plugin": BASELINE_PLUGIN, "exit_code": baseline_rc}
+    if baseline_wrapper.name == LEGACY_BASELINE_PLUGIN:
+        baseline_row["note"] = "legacy_wrapper"
+    plugins_run.append(baseline_row)
+    if baseline_rc not in (ExitCode.ok, ExitCode.findings):
+        return baseline_rc, plugins_run
+    if baseline_rc == ExitCode.findings:
         overall = ExitCode.findings
 
     for plugin in EXECUTE_PLUGIN_ORDER:
-        if plugin == "speedrift":
+        if plugin == BASELINE_PLUGIN:
             continue
         if plugin not in enabled:
             continue
@@ -656,8 +674,8 @@ def cmd_wg_execute(args: argparse.Namespace) -> int:
 
     wg_dir = find_workgraph_dir(Path(args.dir) if args.dir else None)
     project_dir = wg_dir.parent
-    if not (wg_dir / "speedrift").exists():
-        print("error: .workgraph/speedrift not found; run driftdriver install first", file=sys.stderr)
+    if _baseline_wrapper(wg_dir) is None:
+        print("error: .workgraph/coredrift not found; run driftdriver install first", file=sys.stderr)
         return ExitCode.usage
 
     source_wg = Workgraph(wg_dir=wg_dir, project_dir=project_dir)
@@ -705,9 +723,9 @@ def cmd_wg_execute(args: argparse.Namespace) -> int:
         )
         description = root_desc
 
-    if not (target_wg_dir / "speedrift").exists():
+    if _baseline_wrapper(target_wg_dir) is None:
         print(
-            "error: target repo missing .workgraph/speedrift wrapper; install driftdriver in target repo first",
+            "error: target repo missing .workgraph/coredrift wrapper; install driftdriver in target repo first",
             file=sys.stderr,
         )
         return ExitCode.usage
@@ -896,7 +914,7 @@ def main(argv: list[str] | None = None) -> int:
 
     execute = wg_sub.add_parser(
         "execute",
-        help="Build v2 execution lane: create phase tasks and run speedrift suite checks",
+        help="Build v2 execution lane: create phase tasks and run coredrift+suite checks",
     )
     execute.add_argument("--task", help="Root task id containing a redrift block")
     execute.add_argument(

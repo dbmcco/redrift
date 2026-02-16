@@ -67,7 +67,7 @@ class TestExecuteHelpers(unittest.TestCase):
                 "\n".join(
                     [
                         "# Workgraph gitignore",
-                        ".speedrift/",
+                        ".coredrift/",
                         ".redrift/",
                     ]
                 )
@@ -79,7 +79,7 @@ class TestExecuteHelpers(unittest.TestCase):
             additions = cli._merge_v2_workgraph_gitignore(source=src, target=dst)
             merged = dst.read_text(encoding="utf-8")
 
-            self.assertIn(".speedrift/", merged)
+            self.assertIn(".coredrift/", merged)
             self.assertIn(".redrift/last.json", merged)
             self.assertNotIn(".redrift/\n", merged)
             self.assertGreaterEqual(len(additions), 1)
@@ -117,7 +117,7 @@ require_spec_update_when_code_changes = true
 ```therapydrift
 schema = 1
 min_signal_count = 2
-followup_prefixes = ["drift-", "speedrift-pit-", "redrift-"]
+followup_prefixes = ["drift-", "coredrift-pit-", "redrift-"]
 require_recovery_plan = true
 ignore_signal_prefixes = ["Therapydrift:"]
 cooldown_seconds = 1800
@@ -133,8 +133,8 @@ circuit_breaker_after = 6
             project_dir = Path(td)
             wg_dir = project_dir / ".workgraph"
             wg_dir.mkdir(parents=True, exist_ok=True)
-            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (wg_dir / "speedrift").chmod(0o755)
+            (wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "coredrift").chmod(0o755)
 
             fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description()})
             args = argparse.Namespace(
@@ -152,7 +152,7 @@ circuit_breaker_after = 6
 
             with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
                 with patch("redrift.cli.Workgraph", return_value=fake_wg):
-                    with patch("redrift.cli._run_suite_check", side_effect=[(0, [{"plugin": "speedrift", "exit_code": 0}])]) as mock_suite:
+                    with patch("redrift.cli._run_suite_check", side_effect=[(0, [{"plugin": "coredrift", "exit_code": 0}])]) as mock_suite:
                         rc = cli.cmd_wg_execute(args)
 
             self.assertEqual(ExitCode.ok, rc)
@@ -183,7 +183,7 @@ circuit_breaker_after = 6
             self.assertEqual("root-task", root_call["task_id"])
             self.assertTrue(root_call["create_followups"])
 
-    def test_execute_requires_speedrift_wrapper(self) -> None:
+    def test_execute_requires_coredrift_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project_dir = Path(td)
             wg_dir = project_dir / ".workgraph"
@@ -212,8 +212,8 @@ circuit_breaker_after = 6
             project_dir = Path(td)
             wg_dir = project_dir / ".workgraph"
             wg_dir.mkdir(parents=True, exist_ok=True)
-            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (wg_dir / "speedrift").chmod(0o755)
+            (wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "coredrift").chmod(0o755)
 
             fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description()})
             args = argparse.Namespace(
@@ -232,11 +232,11 @@ circuit_breaker_after = 6
             with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
                 with patch("redrift.cli.Workgraph", return_value=fake_wg):
                     side_effect = [
-                        (ExitCode.findings, [{"plugin": "speedrift", "exit_code": ExitCode.findings}]),
-                        (ExitCode.ok, [{"plugin": "speedrift", "exit_code": ExitCode.ok}]),
-                        (ExitCode.ok, [{"plugin": "speedrift", "exit_code": ExitCode.ok}]),
-                        (ExitCode.ok, [{"plugin": "speedrift", "exit_code": ExitCode.ok}]),
-                        (ExitCode.ok, [{"plugin": "speedrift", "exit_code": ExitCode.ok}]),
+                        (ExitCode.findings, [{"plugin": "coredrift", "exit_code": ExitCode.findings}]),
+                        (ExitCode.ok, [{"plugin": "coredrift", "exit_code": ExitCode.ok}]),
+                        (ExitCode.ok, [{"plugin": "coredrift", "exit_code": ExitCode.ok}]),
+                        (ExitCode.ok, [{"plugin": "coredrift", "exit_code": ExitCode.ok}]),
+                        (ExitCode.ok, [{"plugin": "coredrift", "exit_code": ExitCode.ok}]),
                     ]
                     with patch("redrift.cli._run_suite_check", side_effect=side_effect) as mock_suite:
                         rc = cli.cmd_wg_execute(args)
@@ -253,14 +253,14 @@ circuit_breaker_after = 6
             source_project_dir = Path(td) / "source"
             source_wg_dir = source_project_dir / ".workgraph"
             source_wg_dir.mkdir(parents=True, exist_ok=True)
-            (source_wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (source_wg_dir / "speedrift").chmod(0o755)
+            (source_wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (source_wg_dir / "coredrift").chmod(0o755)
 
             target_project_dir = Path(td) / "source-v2"
             target_wg_dir = target_project_dir / ".workgraph"
             target_wg_dir.mkdir(parents=True, exist_ok=True)
-            (target_wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (target_wg_dir / "speedrift").chmod(0o755)
+            (target_wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (target_wg_dir / "coredrift").chmod(0o755)
 
             source_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description()})
             target_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description()})
@@ -286,7 +286,7 @@ circuit_breaker_after = 6
                     ) as mock_bootstrap:
                         with patch(
                             "redrift.cli._run_suite_check",
-                            return_value=(ExitCode.ok, [{"plugin": "speedrift", "exit_code": ExitCode.ok}]),
+                            return_value=(ExitCode.ok, [{"plugin": "coredrift", "exit_code": ExitCode.ok}]),
                         ) as mock_suite:
                             rc = cli.cmd_wg_execute(args)
 
@@ -305,8 +305,8 @@ circuit_breaker_after = 6
             project_dir = Path(td)
             wg_dir = project_dir / ".workgraph"
             wg_dir.mkdir(parents=True, exist_ok=True)
-            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (wg_dir / "speedrift").chmod(0o755)
+            (wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "coredrift").chmod(0o755)
 
             fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description_with_therapy()})
             args = argparse.Namespace(
@@ -337,8 +337,8 @@ circuit_breaker_after = 6
             project_dir = Path(td)
             wg_dir = project_dir / ".workgraph"
             wg_dir.mkdir(parents=True, exist_ok=True)
-            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            (wg_dir / "speedrift").chmod(0o755)
+            (wg_dir / "coredrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "coredrift").chmod(0o755)
 
             fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description_with_therapy()})
             args = argparse.Namespace(

@@ -73,7 +73,7 @@ class TestCommitCommand(unittest.TestCase):
             self._init_repo(project_dir)
 
             (project_dir / "docs.md").write_text("artifact\n", encoding="utf-8")
-            state_file = project_dir / ".workgraph" / ".speedrift" / "state.json"
+            state_file = project_dir / ".workgraph" / ".coredrift" / "state.json"
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text("{\"x\":1}\n", encoding="utf-8")
 
@@ -100,7 +100,7 @@ class TestCommitCommand(unittest.TestCase):
                 text=True,
             )
             self.assertIn("docs.md", changed)
-            self.assertNotIn(".workgraph/.speedrift/state.json", changed)
+            self.assertNotIn(".workgraph/.coredrift/state.json", changed)
             self.assertEqual(0, len(fake_wg.logs))
 
     def test_commit_fails_when_no_changes(self) -> None:
@@ -136,7 +136,7 @@ class TestCommitCommand(unittest.TestCase):
             wg_dir.mkdir(parents=True, exist_ok=True)
             self._init_repo(project_dir)
 
-            state_file = project_dir / ".workgraph" / ".speedrift" / "state.json"
+            state_file = project_dir / ".workgraph" / ".coredrift" / "state.json"
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text("{\"x\":1}\n", encoding="utf-8")
 
