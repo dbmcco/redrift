@@ -29,6 +29,7 @@ OPTIONAL_SUITE_FENCES = (
     "therapydrift",
     "yagnidrift",
 )
+PHASE_DEFAULT_EXCLUDED_FENCES = ("therapydrift",)
 EXECUTE_PLUGIN_ORDER = ("speedrift", "specdrift", "datadrift", "depsdrift", "uxdrift", "therapydrift", "yagnidrift", "redrift")
 COMMIT_PHASES = ("root", "analyze", "respec", "design", "build")
 V2_WORKGRAPH_IGNORES = (
@@ -81,6 +82,7 @@ def _emit_execute_text(report: dict) -> None:
     phase_tasks = [str(x) for x in (report.get("phase_tasks") or [])]
     suite_results = report.get("suite_results") or []
     inherited = [str(x) for x in (report.get("inherited_fences") or [])]
+    phase_inherited = [str(x) for x in (report.get("phase_inherited_fences") or [])]
 
     print(f"redrift execute: {task_id}: {task_title}")
     if not phase_tasks:
@@ -94,6 +96,11 @@ def _emit_execute_text(report: dict) -> None:
         print(f"inherited fences: {', '.join(inherited)}")
     else:
         print("inherited fences: none")
+    if phase_inherited != inherited:
+        if phase_inherited:
+            print(f"phase inherited fences: {', '.join(phase_inherited)}")
+        else:
+            print("phase inherited fences: none")
 
     if suite_results:
         print("suite checks:")
@@ -212,6 +219,15 @@ def _extract_suite_fence_blocks(description: str) -> dict[str, str]:
         if info in blocks:
             continue
         blocks[info] = str(m.group("body") or "").strip()
+    return blocks
+
+
+def _phase_fence_blocks(*, inherited_fences: dict[str, str], include_therapydrift: bool) -> dict[str, str]:
+    blocks = dict(inherited_fences)
+    if include_therapydrift:
+        return blocks
+    for fence in PHASE_DEFAULT_EXCLUDED_FENCES:
+        blocks.pop(fence, None)
     return blocks
 
 
@@ -697,6 +713,10 @@ def cmd_wg_execute(args: argparse.Namespace) -> int:
         return ExitCode.usage
 
     inherited_fences = _extract_suite_fence_blocks(description)
+    phase_inherited_fences = _phase_fence_blocks(
+        inherited_fences=inherited_fences,
+        include_therapydrift=bool(getattr(args, "phase_include_therapydrift", False)),
+    )
     phase_map = _phase_artifacts(spec)
     phase_task_ids: list[str] = []
     phase_task_descriptions: dict[str, str] = {}
@@ -715,7 +735,7 @@ def cmd_wg_execute(args: argparse.Namespace) -> int:
             phase_task_id=phase_task_id,
             spec=spec,
             required_artifacts=required,
-            inherited_fences=inherited_fences,
+            inherited_fences=phase_inherited_fences,
         )
         blocked_by = [previous_task_id] if previous_task_id else None
         target_wg.ensure_task(
@@ -780,6 +800,7 @@ def cmd_wg_execute(args: argparse.Namespace) -> int:
         "bootstrap_notes": bootstrap_notes,
         "phase_tasks": phase_task_ids,
         "inherited_fences": sorted(inherited_fences.keys()),
+        "phase_inherited_fences": sorted(phase_inherited_fences.keys()),
         "suite_results": suite_results,
         "service_started": service_started,
         "service_error": service_error,
@@ -897,6 +918,11 @@ def main(argv: list[str] | None = None) -> int:
         "--phase-followups",
         action="store_true",
         help="Allow phase task suite checks to create follow-up tasks (default: off)",
+    )
+    execute.add_argument(
+        "--phase-include-therapydrift",
+        action="store_true",
+        help="Include therapydrift fence in generated phase tasks (default: excluded to reduce loop-noise)",
     )
     execute.add_argument(
         "--start-service",

@@ -109,6 +109,25 @@ require_spec_update_when_code_changes = true
 ```
 """.strip()
 
+    def _root_description_with_therapy(self) -> str:
+        return (
+            self._root_description()
+            + "\n\n"
+            + """
+```therapydrift
+schema = 1
+min_signal_count = 2
+followup_prefixes = ["drift-", "speedrift-pit-", "redrift-"]
+require_recovery_plan = true
+ignore_signal_prefixes = ["Therapydrift:"]
+cooldown_seconds = 1800
+max_auto_actions_per_hour = 2
+min_new_signals = 1
+circuit_breaker_after = 6
+```
+""".strip()
+        )
+
     def test_execute_creates_phase_lane_and_runs_suite_checks(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project_dir = Path(td)
@@ -128,6 +147,7 @@ require_spec_update_when_code_changes = true
                 start_service=False,
                 json=False,
                 v2_repo=None,
+                phase_include_therapydrift=False,
             )
 
             with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
@@ -179,6 +199,7 @@ require_spec_update_when_code_changes = true
                 start_service=False,
                 json=False,
                 v2_repo=None,
+                phase_include_therapydrift=False,
             )
 
             with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
@@ -205,6 +226,7 @@ require_spec_update_when_code_changes = true
                 start_service=False,
                 json=False,
                 v2_repo=None,
+                phase_include_therapydrift=False,
             )
 
             with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
@@ -253,6 +275,7 @@ require_spec_update_when_code_changes = true
                 phase_followups=False,
                 start_service=False,
                 json=False,
+                phase_include_therapydrift=False,
             )
 
             with patch("redrift.cli.find_workgraph_dir", return_value=source_wg_dir):
@@ -276,6 +299,69 @@ require_spec_update_when_code_changes = true
             self.assertEqual("root-task", target_wg.ensured[0]["task_id"])
             self.assertIn("v2-root", target_wg.ensured[0]["tags"])
             self.assertEqual("redrift-exec-analyze-root-task", target_wg.ensured[1]["task_id"])
+
+    def test_execute_excludes_therapydrift_in_phase_tasks_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td)
+            wg_dir = project_dir / ".workgraph"
+            wg_dir.mkdir(parents=True, exist_ok=True)
+            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "speedrift").chmod(0o755)
+
+            fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description_with_therapy()})
+            args = argparse.Namespace(
+                task="root-task",
+                dir=str(project_dir),
+                write_log=False,
+                create_followups=False,
+                phase_checks=False,
+                phase_followups=False,
+                phase_include_therapydrift=False,
+                start_service=False,
+                json=False,
+                v2_repo=None,
+            )
+
+            with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
+                with patch("redrift.cli.Workgraph", return_value=fake_wg):
+                    with patch("redrift.cli._run_suite_check", return_value=(ExitCode.ok, [])):
+                        rc = cli.cmd_wg_execute(args)
+
+            self.assertEqual(ExitCode.ok, rc)
+            analyze_desc = fake_wg.ensured[0]["description"]
+            self.assertIn("```specdrift", analyze_desc)
+            self.assertNotIn("```therapydrift", analyze_desc)
+
+    def test_execute_can_include_therapydrift_in_phase_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td)
+            wg_dir = project_dir / ".workgraph"
+            wg_dir.mkdir(parents=True, exist_ok=True)
+            (wg_dir / "speedrift").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            (wg_dir / "speedrift").chmod(0o755)
+
+            fake_wg = _FakeWorkgraph(task={"title": "Root", "description": self._root_description_with_therapy()})
+            args = argparse.Namespace(
+                task="root-task",
+                dir=str(project_dir),
+                write_log=False,
+                create_followups=False,
+                phase_checks=False,
+                phase_followups=False,
+                phase_include_therapydrift=True,
+                start_service=False,
+                json=False,
+                v2_repo=None,
+            )
+
+            with patch("redrift.cli.find_workgraph_dir", return_value=wg_dir):
+                with patch("redrift.cli.Workgraph", return_value=fake_wg):
+                    with patch("redrift.cli._run_suite_check", return_value=(ExitCode.ok, [])):
+                        rc = cli.cmd_wg_execute(args)
+
+            self.assertEqual(ExitCode.ok, rc)
+            analyze_desc = fake_wg.ensured[0]["description"]
+            self.assertIn("```therapydrift", analyze_desc)
 
 
 if __name__ == "__main__":

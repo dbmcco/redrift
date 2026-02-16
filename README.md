@@ -64,7 +64,7 @@ What `wg execute` does:
   - `redrift-exec-design-<root-id>`
   - `redrift-exec-build-<root-id>`
 - chains dependencies analyze -> respec -> design -> build
-- copies optional suite fence blocks from the root task (`specdrift`, `datadrift`, `depsdrift`, `uxdrift`, `therapydrift`, `yagnidrift`)
+- copies optional suite fence blocks from the root task into phase tasks (`specdrift`, `datadrift`, `depsdrift`, `uxdrift`, `yagnidrift`)
 - runs suite checks for the root task (`speedrift` + fenced modules, including `redrift`)
 - can also run suite checks for each generated phase task (`--phase-checks`)
 - writes phase task protocol lines that include a structured redrift commit checkpoint command
@@ -74,12 +74,14 @@ Optional flags:
 - `--create-followups` (root suite check follow-ups)
 - `--phase-checks` (run phase task checks; default off)
 - `--phase-followups` (phase suite check follow-ups; default off)
+- `--phase-include-therapydrift` (opt-in to copy `therapydrift` fence into phase tasks)
 - `--start-service` (start `wg service` after lane setup)
 
 Notes:
 - `--v2-repo` bootstraps Git + Workgraph and copies `.workgraph` suite wrappers/policy from the source repo when available.
 - It does **not** copy application source files by default; it creates a clean v2 workspace lane.
 - On brand-new v2 repos, redrift attempts an initial bootstrap commit (`redrift: bootstrap v2 workspace`).
+- By default, `therapydrift` is excluded from generated phase-task fences to reduce recursive loop-noise during heavy phase checks.
 
 ## Structured Commit Workflow
 
