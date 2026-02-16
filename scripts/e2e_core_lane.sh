@@ -4,11 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/e2e_core_lane.sh --run-id <runN> [--source-repo <path>] [--target-root <path>] [--phase-include-therapydrift]
+  scripts/e2e_core_lane.sh --run-id <runN> [--mode worktree|repo] [--source-repo <path>] [--target-root <path>] [--worktree-branch <name>] [--phase-include-therapydrift]
 
 Examples:
   scripts/e2e_core_lane.sh --run-id run3
-  scripts/e2e_core_lane.sh --run-id run4 --source-repo /path/to/driftdriver
+  scripts/e2e_core_lane.sh --run-id run4 --mode worktree --worktree-branch redrift-v2-run4
+  scripts/e2e_core_lane.sh --run-id run5 --mode repo
 EOF
 }
 
@@ -16,11 +17,17 @@ SOURCE_REPO="/Users/braydon/projects/experiments/driftdriver"
 TARGET_ROOT="/Users/braydon/projects/experiments"
 RUN_ID=""
 PHASE_INCLUDE_THERAPY=false
+MODE="worktree"
+WORKTREE_BRANCH=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --run-id)
       RUN_ID="${2:-}"
+      shift 2
+      ;;
+    --mode)
+      MODE="${2:-}"
       shift 2
       ;;
     --source-repo)
@@ -29,6 +36,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --target-root)
       TARGET_ROOT="${2:-}"
+      shift 2
+      ;;
+    --worktree-branch)
+      WORKTREE_BRANCH="${2:-}"
       shift 2
       ;;
     --phase-include-therapydrift)
@@ -52,10 +63,18 @@ if [[ -z "$RUN_ID" ]]; then
   exit 2
 fi
 
+if [[ "$MODE" != "worktree" && "$MODE" != "repo" ]]; then
+  echo "error: --mode must be one of: worktree, repo" >&2
+  exit 2
+fi
+
 WG_DIR="$SOURCE_REPO/.workgraph"
 WRAPPER="$WG_DIR/redrift"
 TASK_ID="redrift-speedrift-core-ecosystem-v2-${RUN_ID}"
 TARGET_REPO="$TARGET_ROOT/speedrift-ecosystem-v2-${RUN_ID}"
+if [[ -z "$WORKTREE_BRANCH" ]]; then
+  WORKTREE_BRANCH="redrift-v2-${RUN_ID}"
+fi
 
 if [[ ! -x "$WRAPPER" ]]; then
   echo "error: redrift wrapper not found at $WRAPPER" >&2
@@ -66,6 +85,18 @@ fi
 if [[ -e "$TARGET_REPO" ]]; then
   echo "error: target repo already exists: $TARGET_REPO" >&2
   exit 2
+fi
+
+if [[ "$MODE" == "worktree" ]]; then
+  if ! git -C "$SOURCE_REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "error: source repo is not a git repository: $SOURCE_REPO" >&2
+    exit 2
+  fi
+  if git -C "$SOURCE_REPO" show-ref --verify --quiet "refs/heads/$WORKTREE_BRANCH"; then
+    echo "error: worktree branch already exists: $WORKTREE_BRANCH" >&2
+    exit 2
+  fi
+  git -C "$SOURCE_REPO" worktree add -b "$WORKTREE_BRANCH" "$TARGET_REPO"
 fi
 
 tmp_desc="$(mktemp)"
@@ -179,6 +210,10 @@ rm -f "$tmp_desc"
 
 echo "task_id=$TASK_ID"
 echo "target_repo=$TARGET_REPO"
+echo "mode=$MODE"
+if [[ "$MODE" == "worktree" ]]; then
+  echo "worktree_branch=$WORKTREE_BRANCH"
+fi
 echo "execute_exit=$rc"
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"

@@ -101,13 +101,16 @@ scripts/e2e_core_lane.sh --run-id run3
 
 Optional:
 
+- `--mode worktree|repo` (default: `worktree`; recommended)
 - `--source-repo /path/to/driftdriver`
 - `--target-root /path/to/experiments`
+- `--worktree-branch redrift-v2-run3` (only in worktree mode)
 - `--phase-include-therapydrift` (opt-in)
 
 The script:
 - creates a standard root task (`redrift-speedrift-core-ecosystem-v2-<run-id>`)
-- executes the lane into `speedrift-ecosystem-v2-<run-id>`
+- defaults to creating a git worktree + branch at `speedrift-ecosystem-v2-<run-id>`
+- executes the lane in that worktree path
 - treats execute exit codes `0` and `3` as expected outcomes
 
 ## Structured Commit Workflow
