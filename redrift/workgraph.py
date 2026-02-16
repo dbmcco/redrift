@@ -13,7 +13,7 @@ class Workgraph:
     project_dir: Path
 
     def wg_log(self, task_id: str, message: str) -> None:
-        subprocess.check_call(["wg", "--dir", str(self.wg_dir), "log", task_id, message])
+        subprocess.check_call(["wg", "--dir", str(self.wg_dir), "log", task_id, message], stdout=subprocess.DEVNULL)
 
     def ensure_task(
         self,
@@ -42,7 +42,7 @@ class Workgraph:
         if tags:
             for t in tags:
                 cmd += ["-t", t]
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, stdout=subprocess.DEVNULL)
 
     def show_task(self, task_id: str) -> dict[str, Any]:
         out = subprocess.check_output(["wg", "--dir", str(self.wg_dir), "show", task_id, "--json"], text=True)
