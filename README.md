@@ -83,6 +83,33 @@ Notes:
 - On brand-new v2 repos, redrift attempts an initial bootstrap commit (`redrift: bootstrap v2 workspace`).
 - By default, `therapydrift` is excluded from generated phase-task fences to reduce recursive loop-noise during heavy phase checks.
 
+## Run Naming
+
+Use run labels as `v2-runN` to avoid confusion with product/version naming:
+
+- `speedrift-ecosystem-v2-run1`
+- `speedrift-ecosystem-v2-run2`
+- `speedrift-ecosystem-v2-run3`
+
+## E2E Helper Script
+
+For repeatable core-lane dogfood runs:
+
+```bash
+scripts/e2e_core_lane.sh --run-id run3
+```
+
+Optional:
+
+- `--source-repo /path/to/driftdriver`
+- `--target-root /path/to/experiments`
+- `--phase-include-therapydrift` (opt-in)
+
+The script:
+- creates a standard root task (`redrift-speedrift-core-ecosystem-v2-<run-id>`)
+- executes the lane into `speedrift-ecosystem-v2-<run-id>`
+- treats execute exit codes `0` and `3` as expected outcomes
+
 ## Structured Commit Workflow
 
 Use redrift to create checkpoint commits tied to Workgraph tasks:
