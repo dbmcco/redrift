@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redrift"
+version = "0.1.0"
+description = "Workgraph sidecar for brownfield re-spec and v2 migration drift"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+redrift = "redrift.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["redrift*"]
