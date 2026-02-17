@@ -34,6 +34,14 @@ required_artifacts = [
   "build/migration-plan.md",
 ]
 create_phase_followups = true
+verify_required = true
+verify_commands = ["npm run type-check", "npm run lint", "npm test -- --runInBand"]
+verify_assertions = [
+  { kind = "max_lines", path = "web/app/api/chat/route.ts", max = 500 },
+  { kind = "forbid_pattern", pattern = "spawn\\(['\\\"]python3", include = ["web/**/*.ts", "web/**/*.tsx"] },
+  { kind = "forbid_pattern", pattern = "fetch\\(['\\\"]/api", include = ["web/**/*.ts", "web/**/*.tsx"] },
+]
+max_followup_depth = 1
 ```
 ````
 
@@ -46,6 +54,18 @@ From a Workgraph repo (where `driftdriver install` has written wrappers):
 
 ```bash
 ./.workgraph/drifts check --task <id> --write-log --create-followups
+```
+
+Run explicit quality gates (writes `.workgraph/.redrift/verify/<task>.json`):
+
+```bash
+./.workgraph/redrift wg verify --task <id> --write-log
+```
+
+Or run both in one pass:
+
+```bash
+./.workgraph/redrift wg check --task <id> --run-verify --write-log --create-followups
 ```
 
 ## Execute v2 Lane (Build Workflow)
@@ -67,7 +87,9 @@ What `wg execute` does:
 - copies optional suite fence blocks from the root task into phase tasks (`specdrift`, `datadrift`, `archdrift`, `depsdrift`, `uxdrift`, `yagnidrift`)
 - runs suite checks for the root task (`coredrift` + fenced modules, including `redrift`)
 - can also run suite checks for each generated phase task (`--phase-checks`)
-- writes phase task protocol lines that include a structured redrift commit checkpoint command
+- writes phase task protocol lines that include:
+  - `redrift wg verify` before final done check
+  - structured redrift commit checkpoint command
 
 Optional flags:
 - `--v2-repo [path]` (create/use a net-new v2 repo and run lane there; default sibling path `<current>-v2`)
@@ -142,4 +164,4 @@ Standalone:
 
 Exit codes:
 - `0`: clean
-- `3`: findings exist (advisory)
+- `3`: findings exist (verification/artifact/follow-up gates not satisfied)

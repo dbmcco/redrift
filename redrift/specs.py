@@ -34,6 +34,10 @@ class RedriftSpec:
     artifact_root: str
     required_artifacts: list[str]
     create_phase_followups: bool
+    verify_required: bool
+    verify_commands: list[str]
+    verify_assertions: list[dict[str, Any]]
+    max_followup_depth: int
 
     @staticmethod
     def from_raw(raw: dict[str, Any]) -> "RedriftSpec":
@@ -55,9 +59,22 @@ class RedriftSpec:
             if str(x).strip()
         ]
         create_phase_followups = bool(raw.get("create_phase_followups", True))
+        verify_required = bool(raw.get("verify_required", True))
+        verify_commands = [str(x).strip() for x in (raw.get("verify_commands") or []) if str(x).strip()]
+        verify_assertions = [x for x in (raw.get("verify_assertions") or []) if isinstance(x, dict)]
+        try:
+            max_followup_depth = int(raw.get("max_followup_depth", 1))
+        except Exception:
+            max_followup_depth = 1
+        if max_followup_depth < 0:
+            max_followup_depth = 0
         return RedriftSpec(
             schema=schema,
             artifact_root=artifact_root,
             required_artifacts=required_artifacts,
             create_phase_followups=create_phase_followups,
+            verify_required=verify_required,
+            verify_commands=verify_commands,
+            verify_assertions=verify_assertions,
+            max_followup_depth=max_followup_depth,
         )

@@ -84,6 +84,33 @@ class TestExecuteHelpers(unittest.TestCase):
             self.assertNotIn(".redrift/\n", merged)
             self.assertGreaterEqual(len(additions), 1)
 
+    def test_followup_ids_are_anchored_to_canonical_root(self) -> None:
+        fake_wg = _FakeWorkgraph(task={"title": "ignored", "description": ""})
+        report = {
+            "task_id": "redrift-analyze-redrift-analyze-root-task",
+            "task_title": "Root Task",
+            "findings": [{"kind": "phase_incomplete_analyze"}],
+            "spec": {"create_phase_followups": True, "max_followup_depth": 4},
+            "telemetry": {"phase_missing": {"analyze": ["analyze/inventory.md"]}},
+            "_redrift_block": "```redrift\nschema = 1\n```",
+        }
+        cli._maybe_create_followups(fake_wg, report)
+        self.assertEqual(1, len(fake_wg.ensured))
+        self.assertEqual("redrift-analyze-root-task", fake_wg.ensured[0]["task_id"])
+
+    def test_followup_creation_respects_depth_limit(self) -> None:
+        fake_wg = _FakeWorkgraph(task={"title": "ignored", "description": ""})
+        report = {
+            "task_id": "redrift-analyze-root-task",
+            "task_title": "Root Task",
+            "findings": [{"kind": "phase_incomplete_analyze"}],
+            "spec": {"create_phase_followups": True, "max_followup_depth": 0},
+            "telemetry": {"phase_missing": {"analyze": ["analyze/inventory.md"]}},
+            "_redrift_block": "```redrift\nschema = 1\n```",
+        }
+        cli._maybe_create_followups(fake_wg, report)
+        self.assertEqual([], fake_wg.ensured)
+
 
 class TestExecuteCommand(unittest.TestCase):
     def _root_description(self) -> str:

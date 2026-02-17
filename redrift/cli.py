@@ -9,9 +9,10 @@ import sys
 from pathlib import Path
 
 from redrift.contracts import format_default_contract_block
-from redrift.drift import PHASE_ORDER, compute_redrift
+from redrift.drift import PHASE_ORDER, compute_redrift, redrift_lineage
 from redrift.git_tools import get_git_root
 from redrift.specs import RedriftSpec, extract_redrift_spec, parse_redrift_spec
+from redrift.verify import run_verify, write_verify_state
 from redrift.workgraph import Workgraph, find_workgraph_dir
 
 
@@ -130,6 +131,33 @@ def _emit_execute_text(report: dict) -> None:
         print(f"wg service: failed ({report.get('service_error')})")
 
 
+def _emit_verify_text(report: dict) -> None:
+    task_id = str(report.get("task_id") or "")
+    task_title = str(report.get("task_title") or task_id)
+    score = str(report.get("score") or "unknown")
+    summary = report.get("summary") or {}
+    print(f"{task_id}: {task_title}")
+    print(f"verify score: {score}")
+    print(
+        "commands: "
+        f"{int(summary.get('commands_total') or 0)} total, "
+        f"{int(summary.get('commands_failed') or 0)} failed"
+    )
+    print(
+        "assertions: "
+        f"{int(summary.get('assertions_total') or 0)} total, "
+        f"{int(summary.get('assertions_failed') or 0)} failed"
+    )
+
+    findings = report.get("findings") or []
+    if findings:
+        print("findings:")
+        for row in findings:
+            print(f"- [{row.get('severity')}] {row.get('kind')}: {row.get('summary')}")
+    else:
+        print("findings: none")
+
+
 def _write_state(*, wg_dir: Path, report: dict) -> None:
     try:
         out_dir = wg_dir / ".redrift"
@@ -154,6 +182,22 @@ def _maybe_write_log(wg: Workgraph, task_id: str, report: dict) -> None:
             if next_action:
                 msg += f" | next: {next_action}"
 
+    wg.wg_log(task_id, msg)
+
+
+def _maybe_write_verify_log(wg: Workgraph, task_id: str, report: dict) -> None:
+    score = str(report.get("score") or "unknown")
+    summary = report.get("summary") or {}
+    findings = report.get("findings") or []
+    msg = (
+        "Redrift verify: "
+        f"{score} (commands_failed={int(summary.get('commands_failed') or 0)}, "
+        f"assertions_failed={int(summary.get('assertions_failed') or 0)})"
+    )
+    if findings:
+        kinds = ", ".join(sorted({str(f.get("kind")) for f in findings}))
+        if kinds:
+            msg += f" | findings: {kinds}"
     wg.wg_log(task_id, msg)
 
 
@@ -281,6 +325,31 @@ def _format_redrift_block(*, spec: RedriftSpec, required_artifacts: list[str], c
         lines.append(f"  {_toml_string(str(rel))},")
     lines.append("]")
     lines.append(f"create_phase_followups = {'true' if create_phase_followups else 'false'}")
+    lines.append(f"verify_required = {'true' if spec.verify_required else 'false'}")
+    if spec.verify_commands:
+        lines.append("verify_commands = [")
+        for cmd in spec.verify_commands:
+            lines.append(f"  {_toml_string(cmd)},")
+        lines.append("]")
+    if spec.verify_assertions:
+        lines.append("verify_assertions = [")
+        for assertion in spec.verify_assertions:
+            items: list[str] = []
+            for key in sorted(assertion.keys()):
+                value = assertion.get(key)
+                if isinstance(value, bool):
+                    rendered = "true" if value else "false"
+                elif isinstance(value, int):
+                    rendered = str(value)
+                elif isinstance(value, list):
+                    vals = ", ".join([_toml_string(str(x)) for x in value])
+                    rendered = f"[{vals}]"
+                else:
+                    rendered = _toml_string(str(value))
+                items.append(f"{key} = {rendered}")
+            lines.append(f"  {{ {', '.join(items)} }},")
+        lines.append("]")
+    lines.append(f"max_followup_depth = {int(spec.max_followup_depth)}")
     lines.append("```")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -422,7 +491,8 @@ def _build_phase_task_description(
     parts.append("")
     parts.append("Execution protocol:")
     parts.append(f"- Before edits: `./.workgraph/drifts check --task {phase_task_id} --write-log`")
-    parts.append(f"- Before done: `./.workgraph/drifts check --task {phase_task_id} --write-log`")
+    parts.append(f"- Before done: `./.workgraph/redrift wg verify --task {phase_task_id} --write-log`")
+    parts.append(f"- Before done (final): `./.workgraph/drifts check --task {phase_task_id} --write-log`")
     parts.append(f"- Checkpoint commit: `./.workgraph/redrift wg commit --task {phase_task_id} --phase {phase}`")
     parts.append("")
     parts.append(
@@ -507,6 +577,8 @@ def _run_suite_check(
             cmd.append("--write-log")
         if create_followups:
             cmd.append("--create-followups")
+        if plugin == "redrift":
+            cmd.append("--run-verify")
 
         rc = int(subprocess.call(cmd))
         plugins_run.append({"plugin": plugin, "exit_code": rc})
@@ -520,22 +592,30 @@ def _run_suite_check(
 
 def _maybe_create_followups(wg: Workgraph, report: dict) -> None:
     task_id = str(report["task_id"])
-    task_title = str(report.get("task_title") or task_id)
+    root_task_id, lineage_depth = redrift_lineage(task_id)
+    task_title = str(report.get("task_title") or root_task_id)
     findings = report.get("findings") or []
     if not findings:
         return
 
     spec = report.get("spec") or {}
+    try:
+        max_followup_depth = int(spec.get("max_followup_depth", 1))
+    except Exception:
+        max_followup_depth = 1
+    if lineage_depth > max_followup_depth:
+        return
+
     phase_missing = ((report.get("telemetry") or {}).get("phase_missing") or {})
 
     create_phase_followups = bool(spec.get("create_phase_followups", True))
     if not create_phase_followups:
-        follow_id = f"redrift-v2-{task_id}"
+        follow_id = f"redrift-v2-{root_task_id}"
         title = f"redrift: {task_title}"
         desc = (
             "Run redrift v2 cycle for this task.\n\n"
             "Context:\n"
-            f"- Origin task: {task_id}\n"
+            f"- Origin task: {root_task_id}\n"
             f"- Findings: {', '.join(sorted({str(f.get('kind')) for f in findings}))}\n\n"
             + format_default_contract_block(mode="explore", objective=title, touch=[])
             + "\n"
@@ -546,7 +626,7 @@ def _maybe_create_followups(wg: Workgraph, report: dict) -> None:
             task_id=follow_id,
             title=title,
             description=desc,
-            blocked_by=[task_id],
+            blocked_by=[root_task_id],
             tags=["drift", "redrift"],
         )
         return
@@ -555,13 +635,13 @@ def _maybe_create_followups(wg: Workgraph, report: dict) -> None:
         missing = [str(x) for x in (phase_missing.get(phase) or []) if str(x).strip()]
         if not missing:
             continue
-        follow_id = f"redrift-{phase}-{task_id}"
+        follow_id = f"redrift-{phase}-{root_task_id}"
         title = f"redrift {phase}: {task_title}"
         missing_lines = "\n".join([f"- {m}" for m in missing])
         desc = (
             f"Complete redrift {phase} artifacts before proceeding.\n\n"
             "Context:\n"
-            f"- Origin task: {task_id}\n"
+            f"- Origin task: {root_task_id}\n"
             f"- Phase: {phase}\n"
             "- Missing artifacts:\n"
             f"{missing_lines}\n\n"
@@ -574,7 +654,7 @@ def _maybe_create_followups(wg: Workgraph, report: dict) -> None:
             task_id=follow_id,
             title=title,
             description=desc,
-            blocked_by=[task_id],
+            blocked_by=[root_task_id],
             tags=["drift", "redrift", phase],
         )
 
@@ -655,6 +735,18 @@ def cmd_wg_check(args: argparse.Namespace) -> int:
         return ExitCode.findings
 
     git_root = get_git_root(project_dir)
+    if bool(getattr(args, "run_verify", False)):
+        verify_report = run_verify(
+            task_id=task_id,
+            task_title=title,
+            spec=spec,
+            project_dir=project_dir,
+            git_root=git_root,
+        )
+        write_verify_state(project_dir=project_dir, task_id=task_id, report=verify_report)
+        if args.write_log:
+            _maybe_write_verify_log(wg, task_id, verify_report)
+
     report = compute_redrift(
         task_id=task_id,
         task_title=title,
@@ -678,6 +770,52 @@ def cmd_wg_check(args: argparse.Namespace) -> int:
         _emit_text(report)
 
     return ExitCode.findings if report.get("findings") else ExitCode.ok
+
+
+def cmd_wg_verify(args: argparse.Namespace) -> int:
+    if not args.task:
+        print("error: --task is required", file=sys.stderr)
+        return ExitCode.usage
+
+    wg_dir = find_workgraph_dir(Path(args.dir) if args.dir else None)
+    project_dir = wg_dir.parent
+    wg = Workgraph(wg_dir=wg_dir, project_dir=project_dir)
+
+    task_id = str(args.task)
+    task = _load_task(wg=wg, task_id=task_id)
+    title = str(task.get("title") or task_id)
+    description = str(task.get("description") or "")
+
+    raw_block = extract_redrift_spec(description)
+    if raw_block is None:
+        print("error: task has no redrift block; add one first", file=sys.stderr)
+        return ExitCode.usage
+
+    try:
+        spec = RedriftSpec.from_raw(parse_redrift_spec(raw_block))
+    except Exception as e:
+        print(f"error: invalid redrift block: {e}", file=sys.stderr)
+        return ExitCode.findings
+
+    git_root = get_git_root(project_dir)
+    report = run_verify(
+        task_id=task_id,
+        task_title=title,
+        spec=spec,
+        project_dir=project_dir,
+        git_root=git_root,
+    )
+    write_verify_state(project_dir=project_dir, task_id=task_id, report=report)
+
+    if args.write_log:
+        _maybe_write_verify_log(wg, task_id, report)
+
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=False))
+    else:
+        _emit_verify_text(report)
+
+    return ExitCode.ok if str(report.get("score") or "").lower() == "green" else ExitCode.findings
 
 
 def cmd_wg_execute(args: argparse.Namespace) -> int:
@@ -923,7 +1061,13 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--task", help="Task id to check")
     check.add_argument("--write-log", action="store_true", help="Write summary into wg log")
     check.add_argument("--create-followups", action="store_true", help="Create follow-up tasks for findings")
+    check.add_argument("--run-verify", action="store_true", help="Run redrift verify first and include it in scoring")
     check.set_defaults(func=cmd_wg_check)
+
+    verify = wg_sub.add_parser("verify", help="Run explicit redrift quality gates (commands + assertions)")
+    verify.add_argument("--task", help="Task id to verify")
+    verify.add_argument("--write-log", action="store_true", help="Write verification summary into wg log")
+    verify.set_defaults(func=cmd_wg_verify)
 
     execute = wg_sub.add_parser(
         "execute",
