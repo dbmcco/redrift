@@ -15,7 +15,7 @@ This project is part of the Speedrift suite for Workgraph-first drift control.
 - Spine: [Workgraph](https://graphwork.github.io/)
 - Orchestrator: [driftdriver](https://github.com/dbmcco/driftdriver)
 - Baseline lane: [coredrift](https://github.com/dbmcco/coredrift)
-- Optional lanes: [specdrift](https://github.com/dbmcco/specdrift), [datadrift](https://github.com/dbmcco/datadrift), [depsdrift](https://github.com/dbmcco/depsdrift), [uxdrift](https://github.com/dbmcco/uxdrift), [therapydrift](https://github.com/dbmcco/therapydrift), [yagnidrift](https://github.com/dbmcco/yagnidrift), [redrift](https://github.com/dbmcco/redrift)
+- Optional lanes: [specdrift](https://github.com/dbmcco/specdrift), [datadrift](https://github.com/dbmcco/datadrift), [archdrift](https://github.com/dbmcco/archdrift), [depsdrift](https://github.com/dbmcco/depsdrift), [uxdrift](https://github.com/dbmcco/uxdrift), [therapydrift](https://github.com/dbmcco/therapydrift), [yagnidrift](https://github.com/dbmcco/yagnidrift), [redrift](https://github.com/dbmcco/redrift)
 
 ## Task Spec Format
 
@@ -64,7 +64,7 @@ What `wg execute` does:
   - `redrift-exec-design-<root-id>`
   - `redrift-exec-build-<root-id>`
 - chains dependencies analyze -> respec -> design -> build
-- copies optional suite fence blocks from the root task into phase tasks (`specdrift`, `datadrift`, `depsdrift`, `uxdrift`, `yagnidrift`)
+- copies optional suite fence blocks from the root task into phase tasks (`specdrift`, `datadrift`, `archdrift`, `depsdrift`, `uxdrift`, `yagnidrift`)
 - runs suite checks for the root task (`coredrift` + fenced modules, including `redrift`)
 - can also run suite checks for each generated phase task (`--phase-checks`)
 - writes phase task protocol lines that include a structured redrift commit checkpoint command

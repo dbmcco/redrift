@@ -24,6 +24,7 @@ class ExitCode:
 OPTIONAL_SUITE_FENCES = (
     "specdrift",
     "datadrift",
+    "archdrift",
     "depsdrift",
     "uxdrift",
     "therapydrift",
@@ -32,13 +33,24 @@ OPTIONAL_SUITE_FENCES = (
 PHASE_DEFAULT_EXCLUDED_FENCES = ("therapydrift",)
 BASELINE_PLUGIN = "coredrift"
 LEGACY_BASELINE_PLUGIN = "speedrift"
-EXECUTE_PLUGIN_ORDER = (BASELINE_PLUGIN, "specdrift", "datadrift", "depsdrift", "uxdrift", "therapydrift", "yagnidrift", "redrift")
+EXECUTE_PLUGIN_ORDER = (
+    BASELINE_PLUGIN,
+    "specdrift",
+    "datadrift",
+    "archdrift",
+    "depsdrift",
+    "uxdrift",
+    "therapydrift",
+    "yagnidrift",
+    "redrift",
+)
 COMMIT_PHASES = ("root", "analyze", "respec", "design", "build")
 V2_WORKGRAPH_IGNORES = (
     ".coredrift/",
     ".speedrift/",
     ".specdrift/",
     ".datadrift/",
+    ".archdrift/",
     ".depsdrift/",
     ".uxdrift/",
     ".therapydrift/",
@@ -50,6 +62,7 @@ COMMIT_EXCLUDE_PATHS = (
     ".workgraph/.speedrift/**",
     ".workgraph/.specdrift/**",
     ".workgraph/.datadrift/**",
+    ".workgraph/.archdrift/**",
     ".workgraph/.depsdrift/**",
     ".workgraph/.uxdrift/**",
     ".workgraph/.therapydrift/**",
