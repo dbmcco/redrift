@@ -1,0 +1,19 @@
+version = 1
+revision = 3
+requires-python = ">=3.11"
+
+[[package]]
+name = "redrift"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "speedrift-lane-sdk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "speedrift-lane-sdk", editable = "../speedrift-lane-sdk" }]
+
+[[package]]
+name = "speedrift-lane-sdk"
+version = "0.1.0"
+source = { editable = "../speedrift-lane-sdk" }
