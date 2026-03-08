@@ -165,3 +165,33 @@ Standalone:
 Exit codes:
 - `0`: clean
 - `3`: findings exist (verification/artifact/follow-up gates not satisfied)
+
+## Agent Guidance
+
+This section is for AI agents (Claude Code, Codex, Amplifier) working in Speedrift-managed repos.
+
+### When This Lane Runs
+
+`redrift` runs when a task description contains a fenced `redrift` TOML block. It is designed for brownfield rebuild programs where an existing codebase is being taken toward a v2 path.
+
+### Per-Task Workflow
+
+1. Add a `redrift` fence to rebuild/migration tasks specifying artifact requirements and verify commands
+2. Follow the four-phase workflow: analyze → respec → design → build
+3. Run drift checks at task start and before completion:
+   ```bash
+   ./.workgraph/drifts check --task <id> --write-log --create-followups
+   ```
+4. Use `wg execute` to create the full phase lane with deterministic task IDs
+5. Use structured commits: `redrift(<phase>): <task title> [<task_id>]`
+6. Drift is advisory — never hard-block the current task
+
+### Key Rules
+
+- Exit code `0` = clean, `3` = findings exist (verification/artifact gates not satisfied)
+- Follow-up tasks are deduped and capped at 3 per lane per repo
+- Phase tasks get deterministic IDs: `redrift-exec-<phase>-<root-id>`
+- Always run `redrift wg verify` before marking build phase tasks done
+- Use `--v2-repo` for clean v2 workspace isolation when appropriate
+- Do not suppress findings — let driftdriver manage significance scoring
+- therapydrift is excluded from phase tasks by default to reduce recursive loop noise
