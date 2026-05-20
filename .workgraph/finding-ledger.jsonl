@@ -1,0 +1,1 @@
+{"timestamp": "2026-04-29T17:28:06.842836+00:00", "repo": "redrift", "lane": "northstardrift", "finding_type": "missing-repo-north-star", "task_id": "drift:redrift:northstar:missing-repo-north-star", "result": "error", "severity": "high", "message": "Canonical repo North Star missing for redrift"}
