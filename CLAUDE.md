@@ -17,18 +17,26 @@ Use `/speedrift` (or `/rifts`) to invoke the full protocol skill.
 ```bash
 # Drift-check a task (run at start + before completion)
 ./.workgraph/drifts check --task <id> --write-log --create-followups
+# Speedrift checks auto-refresh existing managed guidance after repo changes
+
+# Fleet health (spawn-pause, provider health, watchdog, breakers, reap proximity)
+wg health --json
 
 # Ecosystem dashboard (40+ repos, pressure scores, action queue)
 # Local:     http://127.0.0.1:8777/
 # Tailscale: http://100.77.214.44:8777/
 
 # Create tasks with current wg flags
-wg add "Title" --after <dep-id> --immediate --verify "test command"
+wg add "Title" --after <dep-id> --no-place -d "## Validation
+- [ ] test command passes"
 
 # Attractor loop — check convergence status or run convergence
 driftdriver attractor status --json
 driftdriver attractor run --json
 ```
+
+**Push enforcement:** `wg done` requires a successful `git push origin main` by default.
+If the push fails, the task stays open. Fix the push, then re-run `wg done`.
 
 ### Execution Layer (wg + Agency)
 - **Workgraph** is the task spine: dependencies, dispatch, readiness.
@@ -37,13 +45,27 @@ driftdriver attractor run --json
   the protocol envelope (wg-contract, drift checks, executor guidance).
 - Agency is always-on launchd. If unreachable, dispatch continues with generic prompts.
 - Check: `curl -s http://localhost:8000/health`
+- PlanForge handoffs must include unit tests, integration tests, UX tests or waivers,
+  Agency usage, roborev/review obligations, bounded adversarial review, and
+  detailed small-model-ready steps.
+
+### Model Tiers
+Tasks are routed to models by cost tier (cheapest sufficient model wins):
+- **Fast** (free, local): `ollama:gemma4:26b` — simple leaf tasks, refactors, mechanical changes
+- **Standard** (lower cost): `kimi-coding:kimi-for-coding`, `zai:glm-5.2` — normal implementation
+- **Premium** (higher cost): `kimi-coding:k3`, `openai-codex:gpt-5.5` — architecture, critical paths
+
+**Prohibited:** `anthropic/*` models are NOT available for workgraph-dispatched tasks.
+**Conditional:** `lunaroute/*` depends on a third-party server — never default or fallback.
 
 ### Runtime Authority
 - Workgraph is the task/dependency source of truth. `speedriftd` is the repo-local supervisor.
 - Sessions default to `observe`. Do not use `wg service start` as a generic kickoff.
+- `supervise` and `autonomous` require an explicit non-empty lease owner and reason; expired or missing leases fail closed to observe-only dispatch.
 - Refresh state: `driftdriver --dir "$PWD" --json speedriftd status --refresh`
 - Arm repo: `driftdriver --dir "$PWD" speedriftd status --set-mode supervise --lease-owner <agent> --reason "reason"`
 - Disarm: `driftdriver --dir "$PWD" speedriftd status --set-mode observe --release-lease --reason "done"`
+- Service start is permitted only when the refreshed control state reports an elevated mode with `control.lease_active == true`.
 
 ### Dark Factory
 This repo is part of a dark factory managed by the **Factory Brain** — a three-tier
