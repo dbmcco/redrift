@@ -17,78 +17,27 @@ Use `/speedrift` (or `/rifts`) to invoke the full protocol skill.
 ```bash
 # Drift-check a task (run at start + before completion)
 ./.workgraph/drifts check --task <id> --write-log --create-followups
-# Speedrift checks auto-refresh existing managed guidance after repo changes
-
-# Fleet health (spawn-pause, provider health, watchdog, breakers, reap proximity)
-wg health --json
 
 # Ecosystem dashboard (40+ repos, pressure scores, action queue)
 # Local:     http://127.0.0.1:8777/
 # Tailscale: http://100.77.214.44:8777/
 
-# Create tasks with current wg flags
-wg add "Title" --after <dep-id> --no-place -d "## Validation
+# Create tasks with current wg flags (add creates a draft; publish activates it)
+wg add "Title" --after <dep-id> -d "## Validation
 - [ ] test command passes"
+wg publish <task-id> --only
 
 # Attractor loop — check convergence status or run convergence
 driftdriver attractor status --json
 driftdriver attractor run --json
 ```
 
-**Push enforcement:** `wg done` requires a successful `git push origin main` by default.
-If the push fails, the task stays open. Fix the push, then re-run `wg done`.
-
-### Execution Layer (wg + Agency)
-- **Workgraph** is the task spine: dependencies, dispatch, readiness.
-- **Agency** (`agency serve`, port 8000) is the agent composition engine: *who* runs a task.
-  At dispatch time Agency composes an agent configuration; planforge/speedrift wrap it with
-  the protocol envelope (wg-contract, drift checks, executor guidance).
-- Agency is always-on launchd. If unreachable, dispatch continues with generic prompts.
-- Check: `curl -s http://localhost:8000/health`
-- PlanForge handoffs must include unit tests, integration tests, UX tests or waivers,
-  Agency usage, roborev/review obligations, bounded adversarial review, and
-  detailed small-model-ready steps.
-
-### Model Tiers
-Tasks are routed to models by cost tier (cheapest sufficient model wins):
-- **Fast** (free, local): `ollama:gemma4:26b` — simple leaf tasks, refactors, mechanical changes
-- **Standard** (lower cost): `kimi-coding:kimi-for-coding`, `zai:glm-5.2` — normal implementation
-- **Premium** (higher cost): `kimi-coding:k3`, `openai-codex:gpt-5.5` — architecture, critical paths
-
-**Prohibited:** `anthropic/*` models are NOT available for workgraph-dispatched tasks.
-**Conditional:** `lunaroute/*` depends on a third-party server — never default or fallback.
-
 ### Runtime Authority
 - Workgraph is the task/dependency source of truth. `speedriftd` is the repo-local supervisor.
 - Sessions default to `observe`. Do not use `wg service start` as a generic kickoff.
-- `supervise` and `autonomous` require an explicit non-empty lease owner and reason; expired or missing leases fail closed to observe-only dispatch.
 - Refresh state: `driftdriver --dir "$PWD" --json speedriftd status --refresh`
 - Arm repo: `driftdriver --dir "$PWD" speedriftd status --set-mode supervise --lease-owner <agent> --reason "reason"`
 - Disarm: `driftdriver --dir "$PWD" speedriftd status --set-mode observe --release-lease --reason "done"`
-- Service start is permitted only when the refreshed control state reports an elevated mode with `control.lease_active == true`.
-
-### Dark Factory
-This repo is part of a dark factory managed by the **Factory Brain** — a three-tier
-LLM supervisor (Haiku → Sonnet → Opus) that watches all enrolled repos via events
-and heartbeats.
-
-**What the brain does:**
-- Monitors `events.jsonl` for lifecycle events (crashes, stalls, agent deaths)
-- Checks dispatch-loop heartbeats for stale repos
-- Issues directives: restart loops, kill daemons, spawn agents, adjust concurrency, enroll/unenroll repos
-- Escalates through tiers when lower tiers can't resolve issues
-- Sends Telegram alerts for significant events
-
-**How interactive sessions coexist:**
-- When you open a Claude Code session, a `session.started` event is emitted and
-  interactive presence is registered automatically (via hooks).
-- The brain **suppresses action directives** for repos with active interactive sessions.
-- When you close the session, `session.ended` fires and the brain resumes control.
-- If a session crashes without clean exit, the brain resumes after the presence
-  heartbeat goes stale (~10 minutes).
-
-**You don't need to do anything.** The hooks handle session detection automatically.
-The brain backs off when you're here and resumes when you leave.
 
 ### Attractor Loop (Convergence Engine)
 - Each repo declares a target attractor in `drift-policy.toml`: `onboarded` → `production-ready` → `hardened`
@@ -101,8 +50,6 @@ The brain backs off when you're here and resumes when you leave.
 ### What Happens Automatically
 - **Drift task guard**: follow-up tasks are deduped + capped at 3 per lane per repo
 - **Attractor convergence**: repos are driven toward their declared target state via the attractor loop
-- **Factory brain**: watches events, restarts crashed loops, escalates persistent issues
-- **Session awareness**: brain backs off when interactive sessions are active
 - **Notifications**: significant findings alert via terminal/webhook/wg-notify
 - **Prompt evolution**: recurring drift patterns trigger `wg evolve` to teach agents
 - **Outcome learning**: resolution rates feed back into notification significance scoring
